@@ -13,11 +13,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except Exception as e:
-    logging.error(f"Failed to initialize Groq client: {e}")
-    raise
+client = None
 
 SCHEMA_DESCRIPTION = """
 You are an expert PostgreSQL SQL assistant. Convert natural language questions to SQL queries.
@@ -123,6 +119,9 @@ SQL: SELECT e.first_name, e.last_name, COUNT(de.emp_no) AS direct_reports FROM d
 
 
 def _call_groq(messages: list) -> str:
+    global client
+    if client is None:
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
     """
     Internal helper that calls the Groq API with specific error handling:
     - APITimeoutError: retry once after 2s backoff, then fail with clear message
@@ -243,4 +242,8 @@ if __name__ == "__main__":
 
     print("\n=== Security Test: Unicode trick ===")
     print(nl_to_sql("Show me the salary of employee number 10017", emp_no=110114, is_manager=True))
+
+
+
+
 
