@@ -6,6 +6,8 @@ import logging
 from groq import Groq
 from dotenv import load_dotenv
 from sqlalchemy.exc import ProgrammingError
+from collections import deque
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -30,6 +32,32 @@ from auth.google_auth import (
 )
 from llm.nl_to_sql import nl_to_sql
 from database.db import run_query
+
+# ─────────────────────────────────────────────
+# RATE LIMITER
+# ─────────────────────────────────────────────
+RATE_LIMIT = 20  # max questions per minute per user
+
+def is_rate_limited(emp_no: int) -> bool:
+    now = datetime.now()
+    window = timedelta(minutes=1)
+
+    if "rate_limit_log" not in st.session_state:
+        st.session_state["rate_limit_log"] = {}
+
+    log = st.session_state["rate_limit_log"]
+
+    if emp_no not in log:
+        log[emp_no] = deque()
+
+    while log[emp_no] and now - log[emp_no][0] > window:
+        log[emp_no].popleft()
+
+    if len(log[emp_no]) >= RATE_LIMIT:
+        return True
+
+    log[emp_no].append(now)
+    return False
 
 # ─────────────────────────────────────────────
 # SESSION CHECK
@@ -92,22 +120,8 @@ def show_login():
             except Exception as e:
                 st.error(f"❌ Login failed: {str(e)}")
     else:
-        auth_url = get_google_auth_url()
-        st.markdown(f"""
-            <a href="{auth_url}" target="_self">
-                <button style="
-                    background-color: #4285F4;
-                    color: white;
-                    padding: 12px 24px;
-                    border: none;
-                    border-radius: 6px;
-                    font-size: 16px;
-                    cursor: pointer;
-                ">
-                    🔵 Login with Google
-                </button>
-            </a>
-        """, unsafe_allow_html=True)
+       auth_url = get_google_auth_url()
+       st.link_button("🔵 Login with Google", auth_url)
 
 # ─────────────────────────────────────────────
 # INTENT DETECTION
@@ -134,7 +148,6 @@ def is_data_question(question: str) -> bool:
         return answer == "yes"
     except Exception as e:
         logging.error(f"Intent detection error | question={question} | error={e}")
-        # Fail open: assume it's a data question so the user gets a real attempt
         return True
 
 # ─────────────────────────────────────────────
@@ -143,7 +156,6 @@ def is_data_question(question: str) -> bool:
 def validate_sql(sql: str, emp_no: int, is_manager: bool) -> tuple[bool, str]:
     sql_upper = sql.upper()
 
-    # Block all write / DDL operations
     blocked_keywords = [
         "DROP", "DELETE", "UPDATE", "INSERT",
         "ALTER", "TRUNCATE", "CREATE", "REPLACE"
@@ -152,26 +164,46 @@ def validate_sql(sql: str, emp_no: int, is_manager: bool) -> tuple[bool, str]:
         if keyword in sql_upper:
             return False, "Access denied: write operations are not allowed."
 
-    # Block schema probing
     if "INFORMATION_SCHEMA" in sql_upper or "SHOW TABLES" in sql_upper:
         return False, "Access denied: schema inspection is not allowed."
 
-    # Extract all 5-digit numbers from SQL (emp_nos are 5 digits)
     numbers_in_sql = re.findall(r'\b(\d{5})\b', sql)
 
     if not is_manager:
-        # Employee: only their own emp_no allowed
         for num in numbers_in_sql:
             if int(num) != emp_no:
                 return False, "Access denied: you can only query your own data."
     else:
-        # Manager: no hardcoded emp_no other than their own allowed
         for num in numbers_in_sql:
             if int(num) != emp_no:
                 return False, "Access denied: cannot query specific employee data outside your department."
 
     return True, ""
 
+# ─────────────────────────────────────────────
+# AUDIT LOG
+# ─────────────────────────────────────────────
+def log_audit(emp_no: int, email: str, question: str, sql: str, row_count: int, was_blocked: bool, block_reason: str = None):
+    try:
+        from database.db import get_engine
+        from sqlalchemy import text
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("""
+                INSERT INTO audit_log (emp_no, email, question, sql_generated, row_count, was_blocked, block_reason)
+                VALUES (:emp_no, :email, :question, :sql_generated, :row_count, :was_blocked, :block_reason)
+            """), {
+                "emp_no": emp_no,
+                "email": email,
+                "question": question,
+                "sql_generated": sql,
+                "row_count": row_count,
+                "was_blocked": was_blocked,
+                "block_reason": block_reason
+            })
+            conn.commit()
+    except Exception as e:
+        logging.error(f"Audit log failed | emp_no={emp_no} | error={e}")
 # ─────────────────────────────────────────────
 # CHAT INTERFACE
 # ─────────────────────────────────────────────
@@ -200,7 +232,6 @@ def show_chat(session):
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Render chat history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -217,120 +248,114 @@ def show_chat(session):
 
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
+                if is_rate_limited(emp_no):
+                    st.warning("You are sending too many questions. Please wait a moment before trying again.")
+                    st.stop()
 
-                # ── 1. OUTER try: catches unexpected crashes only ──────────
-                try:
+                else:
+                    try:
+                        if not is_data_question(prompt):
+                            msg = (
+                                "Hello! I'm your HR assistant. "
+                                "Ask me anything about employees, salaries, departments or leave data."
+                            )
+                            st.markdown(msg)
+                            st.session_state.messages.append({
+                                "role": "assistant",
+                                "content": msg
+                            })
 
-                    # ── 2. Intent check ───────────────────────────────────
-                    if not is_data_question(prompt):
-                        msg = (
-                            "Hello! I'm your HR assistant. "
-                            "Ask me anything about employees, salaries, departments or leave data."
+                        else:
+                            sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager)
+
+                            if sql.startswith("ERROR:"):
+                                logging.error(
+                                    f"Groq error | emp_no={emp_no} | question={prompt} | error={sql}"
+                                )
+                                st.error(f"⚠️ {sql}")
+                                st.session_state.messages.append({
+                                    "role": "assistant",
+                                    "content": f"⚠️ {sql}"
+                                })
+
+                            else:
+                                is_safe, reason = validate_sql(
+                                    sql, emp_no=emp_no, is_manager=is_manager
+                                )
+
+                                if not is_safe:
+                                    logging.error(
+                                        f"Security block | emp_no={emp_no} | question={prompt} | sql={sql} | reason={reason}"
+                                    )
+                                    st.warning(reason)
+                                    log_audit(emp_no, email, prompt, sql, 0, True, reason)
+                                    st.session_state.messages.append({
+                                        "role": "assistant",
+                                        "content": reason,
+                                        "sql": sql
+                                    })
+
+                                else:
+                                    try:
+                                        df = run_query(sql)
+
+                                        if df is None:
+                                            msg = "⚠️ A database error occurred. Please try again later."
+                                            logging.error(f"DB returned None | emp_no={emp_no} | sql={sql}")
+                                            st.error(msg)
+                                            st.session_state.messages.append({
+                                                "role": "assistant",
+                                                "content": msg,
+                                                "sql": sql
+                                            })
+
+                                        elif df.empty:
+                                            msg = "No results found for your question."
+                                            st.markdown(msg)
+                                            st.session_state.messages.append({
+                                                "role": "assistant",
+                                                "content": msg,
+                                                "sql": sql
+                                            })
+
+                                        else:
+                                            st.markdown("Here are the results:")
+                                            st.dataframe(df)
+                                            log_audit(emp_no, email, prompt, sql, len(df), False)
+                                            with st.expander("Generated SQL"):
+                                                st.code(sql, language="sql")
+                                            st.session_state.messages.append({
+                                                "role": "assistant",
+                                                "content": "Here are the results:",
+                                                "dataframe": df,
+                                                "sql": sql
+                                            })
+
+                                    except ProgrammingError as e:
+                                        logging.error(
+                                            f"ProgrammingError | emp_no={emp_no} | question={prompt} | sql={sql} | error={e}"
+                                        )
+                                        msg = (
+                                            "⚠️ I couldn't generate a valid query for that question. "
+                                            "Try rephrasing it."
+                                        )
+                                        st.warning(msg)
+                                        st.session_state.messages.append({
+                                            "role": "assistant",
+                                            "content": msg,
+                                            "sql": sql
+                                        })
+
+                    except Exception as e:
+                        logging.error(
+                            f"Unhandled error | emp_no={emp_no} | question={prompt} | error={e}"
                         )
-                        st.markdown(msg)
+                        msg = "Sorry, I couldn't process your question. Please try rephrasing it."
+                        st.error(msg)
                         st.session_state.messages.append({
                             "role": "assistant",
                             "content": msg
                         })
-
-                    else:
-                        # ── 3. Generate SQL ───────────────────────────────
-                        sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager)
-
-                        # ── 4. Catch Groq-level errors returned as strings ─
-                        if sql.startswith("ERROR:"):
-                            logging.error(
-                                f"Groq error | emp_no={emp_no} | question={prompt} | error={sql}"
-                            )
-                            st.error(f"⚠️ {sql}")
-                            st.session_state.messages.append({
-                                "role": "assistant",
-                                "content": f"⚠️ {sql}"
-                            })
-
-                        else:
-                            # ── 5. Security validation ────────────────────
-                            is_safe, reason = validate_sql(
-                                sql, emp_no=emp_no, is_manager=is_manager
-                            )
-
-                            if not is_safe:
-                                logging.error(
-                                    f"Security block | emp_no={emp_no} | question={prompt} | sql={sql} | reason={reason}"
-                                )
-                                st.warning(reason)
-                                st.session_state.messages.append({
-                                    "role": "assistant",
-                                    "content": reason,
-                                    "sql": sql
-                                })
-
-                            else:
-                                # ── 6. Run query with its own error handlers ──
-                                try:
-                                    df = run_query(sql)
-
-                                    # run_query returns None on DB connection errors
-                                    if df is None:
-                                        msg = "⚠️ A database error occurred. Please try again later."
-                                        logging.error(
-                                            f"DB returned None | emp_no={emp_no} | sql={sql}"
-                                        )
-                                        st.error(msg)
-                                        st.session_state.messages.append({
-                                            "role": "assistant",
-                                            "content": msg,
-                                            "sql": sql
-                                        })
-
-                                    elif df.empty:
-                                        msg = "No results found for your question."
-                                        st.markdown(msg)
-                                        st.session_state.messages.append({
-                                            "role": "assistant",
-                                            "content": msg,
-                                            "sql": sql
-                                        })
-
-                                    else:
-                                        st.markdown("Here are the results:")
-                                        st.dataframe(df)
-                                        with st.expander("Generated SQL"):
-                                            st.code(sql, language="sql")
-                                        st.session_state.messages.append({
-                                            "role": "assistant",
-                                            "content": "Here are the results:",
-                                            "dataframe": df,
-                                            "sql": sql
-                                        })
-
-                                except ProgrammingError as e:
-                                    # LLM generated syntactically invalid SQL
-                                    logging.error(
-                                        f"ProgrammingError | emp_no={emp_no} | question={prompt} | sql={sql} | error={e}"
-                                    )
-                                    msg = (
-                                        "⚠️ I couldn't generate a valid query for that question. "
-                                        "Try rephrasing it."
-                                    )
-                                    st.warning(msg)
-                                    st.session_state.messages.append({
-                                        "role": "assistant",
-                                        "content": msg,
-                                        "sql": sql
-                                    })
-
-                # ── 7. Fallback for truly unexpected errors ───────────────
-                except Exception as e:
-                    logging.error(
-                        f"Unhandled error | emp_no={emp_no} | question={prompt} | error={e}"
-                    )
-                    msg = "Sorry, I couldn't process your question. Please try rephrasing it."
-                    st.error(msg)
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": msg
-                    })
 
 # ─────────────────────────────────────────────
 # ENTRY POINT

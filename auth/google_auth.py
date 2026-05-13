@@ -1,4 +1,4 @@
-import os
+﻿import os
 import logging
 import secrets
 from datetime import datetime, timedelta
@@ -6,27 +6,28 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from sqlalchemy import text
 from database.db import get_engine
-from dotenv import load_dotenv
+import streamlit as st
 
-load_dotenv()
-
-# Setup logging
 logging.basicConfig(
     filename="hr_chatbot.log",
     level=logging.ERROR,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = "http://localhost:8501"
+GOOGLE_CLIENT_ID = st.secrets["GOOGLE_CLIENT_ID"]
+GOOGLE_CLIENT_SECRET = st.secrets["GOOGLE_CLIENT_SECRET"]
+
+def get_redirect_uri():
+    try:
+        return st.secrets["GOOGLE_REDIRECT_URI"]
+    except:
+        return os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8501")
 
 def get_google_auth_url():
-    """Generate the Google OAuth login URL."""
     base_url = "https://accounts.google.com/o/oauth2/v2/auth"
     params = (
         f"?client_id={GOOGLE_CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}"
+        f"&redirect_uri={get_redirect_uri()}"
         f"&response_type=code"
         f"&scope=openid%20email%20profile"
         f"&access_type=offline"
@@ -34,7 +35,6 @@ def get_google_auth_url():
     return base_url + params
 
 def exchange_code_for_token(code: str):
-    """Exchange the authorization code for an access token."""
     import requests
     try:
         response = requests.post(
@@ -43,7 +43,7 @@ def exchange_code_for_token(code: str):
                 "code": code,
                 "client_id": GOOGLE_CLIENT_ID,
                 "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": REDIRECT_URI,
+                "redirect_uri": get_redirect_uri(),
                 "grant_type": "authorization_code",
             }
         )
@@ -53,7 +53,6 @@ def exchange_code_for_token(code: str):
         return None
 
 def get_user_email_from_token(token_data: dict):
-    """Extract the user's email by calling Google's userinfo endpoint."""
     import requests
     try:
         access_token = token_data.get("access_token")
@@ -71,7 +70,6 @@ def get_user_email_from_token(token_data: dict):
         return None
 
 def get_user_account(email: str):
-    """Look up user_accounts table by email."""
     try:
         engine = get_engine()
         with engine.connect() as conn:
@@ -88,7 +86,6 @@ def get_user_account(email: str):
         return None
 
 def create_session(emp_no: int, email: str, role: str):
-    """Create a session in the sessions table and return the session_id."""
     try:
         session_id = secrets.token_hex(32)
         expires_at = datetime.now() + timedelta(hours=8)
@@ -111,7 +108,6 @@ def create_session(emp_no: int, email: str, role: str):
         return None
 
 def validate_session(session_id: str):
-    """Validate session and return emp_no, email, role if valid."""
     try:
         engine = get_engine()
         with engine.connect() as conn:
@@ -133,7 +129,6 @@ def validate_session(session_id: str):
         return None
 
 def logout(session_id: str):
-    """Delete session from DB."""
     try:
         engine = get_engine()
         with engine.connect() as conn:
