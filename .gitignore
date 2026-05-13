@@ -222,3 +222,10 @@ __marimo__/
 hr-llm/
 
 migrate.py
+
+.env
+*.env
+__pycache__/
+*.pyc
+hr_chatbot.log
+chatbot.log
