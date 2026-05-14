@@ -135,10 +135,10 @@ def is_data_question(question: str) -> bool:
                 {
                     "role": "system",
                     "content": (
-                        "You are a classifier. Respond with only 'yes' or 'no'. "
-                        "Does the following message require querying an HR database to answer? "
-                        "Be generous — if the message is asking about employees, salaries, "
-                        "departments, leave, or any HR topic, answer 'yes'."
+                        "You are a strict classifier. Respond with only 'yes' or 'no'. "
+                        "Answer 'yes' ONLY if the question is specifically about HR data such as: "
+                        "employee records, salaries, departments, leave, attendance, job titles, or hiring. "
+                        "Answer 'no' for anything else — geography, general knowledge, math, weather, etc."
                     )
                 },
                 {"role": "user", "content": question}
@@ -259,7 +259,6 @@ def show_chat(session):
 
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                # Use email as rate limit key (works for admin with NULL emp_no)
                 if is_rate_limited(email):
                     st.warning("You are sending too many questions. Please wait a moment before trying again.")
                     st.stop()
@@ -278,7 +277,6 @@ def show_chat(session):
                             })
 
                         else:
-                            # Admin gets is_manager=True so nl_to_sql uses broader context
                             sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager or is_admin)
 
                             if sql.startswith("ERROR:"):
