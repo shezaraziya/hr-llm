@@ -242,7 +242,8 @@ def show_chat(session):
 
                 else:
                     try:
-                        is_data = is_data_question(prompt)                        if not is_data:
+                        is_data = is_data_question(prompt)
+                        if not is_data:
                             msg = (
                                 "Hello! I'm your HR assistant. "
                                 "Ask me anything about employees, salaries, departments or leave data."
@@ -355,5 +356,6 @@ if session is None:
     show_login()
 else:
     show_chat(session)
+
 
 
