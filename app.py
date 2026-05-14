@@ -127,28 +127,7 @@ def show_login():
 # INTENT DETECTION
 # ─────────────────────────────────────────────
 def is_data_question(question: str) -> bool:
-    try:
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a strict classifier. Respond with only 'yes' or 'no'. "
-                        "Answer 'yes' ONLY if the question is specifically about HR data such as: "
-                        "employee records, salaries, departments, leave, attendance, job titles, or hiring. "
-                        "Answer 'no' for anything else — geography, general knowledge, math, weather, etc."
-                    )
-                },
-                {"role": "user", "content": question}
-            ]
-        )
-        answer = response.choices[0].message.content.strip().lower()
-        return answer == "yes"
-    except Exception as e:
-        logging.error(f"Intent detection error | question={question} | error={e}")
-        return True
+    return True
 
 # ─────────────────────────────────────────────
 # SQL SECURITY VALIDATOR
