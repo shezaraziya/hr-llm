@@ -13,7 +13,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-_groq_client = None
+
 
 def get_groq_client():
     global _groq_client
@@ -202,6 +202,7 @@ def nl_to_sql(question: str, emp_no: int, is_manager: bool = False) -> str:
     except Exception as e:
         logging.error(f"nl_to_sql error | emp_no={emp_no} | is_manager={is_manager} | question={question} | error={e}")
         return f"ERROR: {str(e)}"
+
 
 
 
