@@ -79,13 +79,21 @@ def get_user_account(email: str):
             """), {"email": email})
             row = result.fetchone()
             if row:
-                return {"emp_no": row.emp_no, "role": row.role}
+                return {
+                    "emp_no": row.emp_no,   # will be None for admin — that's fine
+                    "role": row.role
+                }
             return None
     except Exception as e:
         logging.error(f"get_user_account failed for {email}: {e}")
         return None
 
-def create_session(emp_no: int, email: str, role: str):
+def create_session(emp_no, email: str, role: str):
+    """
+    emp_no can be None for admin users.
+    Make sure the sessions table allows NULL emp_no:
+        ALTER TABLE sessions ALTER COLUMN emp_no DROP NOT NULL;
+    """
     try:
         session_id = secrets.token_hex(32)
         expires_at = datetime.now() + timedelta(hours=8)
@@ -96,7 +104,7 @@ def create_session(emp_no: int, email: str, role: str):
                 VALUES (:session_id, :emp_no, :email, :role, :expires_at)
             """), {
                 "session_id": session_id,
-                "emp_no": emp_no,
+                "emp_no": emp_no,       # None is fine if column is nullable
                 "email": email,
                 "role": role,
                 "expires_at": expires_at

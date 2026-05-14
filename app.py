@@ -38,7 +38,7 @@ from database.db import run_query
 # ─────────────────────────────────────────────
 RATE_LIMIT = 20  # max questions per minute per user
 
-def is_rate_limited(emp_no: int) -> bool:
+def is_rate_limited(user_key: str) -> bool:
     now = datetime.now()
     window = timedelta(minutes=1)
 
@@ -47,16 +47,16 @@ def is_rate_limited(emp_no: int) -> bool:
 
     log = st.session_state["rate_limit_log"]
 
-    if emp_no not in log:
-        log[emp_no] = deque()
+    if user_key not in log:
+        log[user_key] = deque()
 
-    while log[emp_no] and now - log[emp_no][0] > window:
-        log[emp_no].popleft()
+    while log[user_key] and now - log[user_key][0] > window:
+        log[user_key].popleft()
 
-    if len(log[emp_no]) >= RATE_LIMIT:
+    if len(log[user_key]) >= RATE_LIMIT:
         return True
 
-    log[emp_no].append(now)
+    log[user_key].append(now)
     return False
 
 # ─────────────────────────────────────────────
@@ -120,8 +120,8 @@ def show_login():
             except Exception as e:
                 st.error(f"❌ Login failed: {str(e)}")
     else:
-       auth_url = get_google_auth_url()
-       st.link_button("🔵 Login with Google", auth_url)
+        auth_url = get_google_auth_url()
+        st.link_button("🔵 Login with Google", auth_url)
 
 # ─────────────────────────────────────────────
 # INTENT DETECTION
@@ -153,9 +153,10 @@ def is_data_question(question: str) -> bool:
 # ─────────────────────────────────────────────
 # SQL SECURITY VALIDATOR
 # ─────────────────────────────────────────────
-def validate_sql(sql: str, emp_no: int, is_manager: bool) -> tuple[bool, str]:
+def validate_sql(sql: str, emp_no: int, is_manager: bool, is_admin: bool = False) -> tuple[bool, str]:
     sql_upper = sql.upper()
 
+    # Write operations always blocked for everyone
     blocked_keywords = [
         "DROP", "DELETE", "UPDATE", "INSERT",
         "ALTER", "TRUNCATE", "CREATE", "REPLACE"
@@ -166,6 +167,10 @@ def validate_sql(sql: str, emp_no: int, is_manager: bool) -> tuple[bool, str]:
 
     if "INFORMATION_SCHEMA" in sql_upper or "SHOW TABLES" in sql_upper:
         return False, "Access denied: schema inspection is not allowed."
+
+    # Admin bypasses all row-level restrictions
+    if is_admin:
+        return True, ""
 
     numbers_in_sql = re.findall(r'\b(\d{5})\b', sql)
 
@@ -183,7 +188,7 @@ def validate_sql(sql: str, emp_no: int, is_manager: bool) -> tuple[bool, str]:
 # ─────────────────────────────────────────────
 # AUDIT LOG
 # ─────────────────────────────────────────────
-def log_audit(emp_no: int, email: str, question: str, sql: str, row_count: int, was_blocked: bool, block_reason: str = None):
+def log_audit(emp_no, email: str, question: str, sql: str, row_count: int, was_blocked: bool, block_reason: str = None):
     try:
         from database.db import get_engine
         from sqlalchemy import text
@@ -204,6 +209,7 @@ def log_audit(emp_no: int, email: str, question: str, sql: str, row_count: int, 
             conn.commit()
     except Exception as e:
         logging.error(f"Audit log failed | emp_no={emp_no} | error={e}")
+
 # ─────────────────────────────────────────────
 # CHAT INTERFACE
 # ─────────────────────────────────────────────
@@ -211,16 +217,21 @@ def show_chat(session):
     emp_no = session["emp_no"]
     role = session["role"]
     email = session["email"]
+    is_admin = role == "admin"
     is_manager = role == "manager"
+
+    role_label = "🔑 Admin" if is_admin else ("👔 Manager" if is_manager else "👤 Employee")
 
     st.set_page_config(page_title="HR Chatbot", page_icon="🤖")
     st.title("🤖 HR AI Chatbot")
-    st.markdown(f"Logged in as **{email}** | {'👔 Manager' if is_manager else '👤 Employee'}")
+    st.markdown(f"Logged in as **{email}** | {role_label}")
 
     with st.sidebar:
         st.markdown(f"**Email:** {email}")
-        st.markdown(f"**Emp No:** {emp_no}")
+        st.markdown(f"**Emp No:** {emp_no if emp_no else 'N/A (Admin)'}")
         st.markdown(f"**Role:** {role.capitalize()}")
+        if is_admin:
+            st.success("🔑 Full access — all departments")
         if st.button("🚪 Logout"):
             logout(st.session_state["session_id"])
             for key in ["session_id", "emp_no", "role", "email"]:
@@ -248,7 +259,8 @@ def show_chat(session):
 
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                if is_rate_limited(emp_no):
+                # Use email as rate limit key (works for admin with NULL emp_no)
+                if is_rate_limited(email):
                     st.warning("You are sending too many questions. Please wait a moment before trying again.")
                     st.stop()
 
@@ -266,7 +278,8 @@ def show_chat(session):
                             })
 
                         else:
-                            sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager)
+                            # Admin gets is_manager=True so nl_to_sql uses broader context
+                            sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager or is_admin)
 
                             if sql.startswith("ERROR:"):
                                 logging.error(
@@ -280,7 +293,7 @@ def show_chat(session):
 
                             else:
                                 is_safe, reason = validate_sql(
-                                    sql, emp_no=emp_no, is_manager=is_manager
+                                    sql, emp_no=emp_no, is_manager=is_manager, is_admin=is_admin
                                 )
 
                                 if not is_safe:
