@@ -16,10 +16,7 @@ logging.basicConfig(
 
 
 def get_groq_client():
-    global _groq_client
-    if _groq_client is None:
-        _groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-    return _groq_client
+    return Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 SCHEMA_DESCRIPTION = """
 You are an expert PostgreSQL SQL assistant. Convert natural language questions to SQL queries.
@@ -202,6 +199,9 @@ def nl_to_sql(question: str, emp_no: int, is_manager: bool = False) -> str:
     except Exception as e:
         logging.error(f"nl_to_sql error | emp_no={emp_no} | is_manager={is_manager} | question={question} | error={e}")
         return f"ERROR: {str(e)}"
+
+
+
 
 
 
