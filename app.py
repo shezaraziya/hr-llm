@@ -149,7 +149,7 @@ def validate_sql(sql: str, emp_no: int, is_manager: bool, is_admin: bool = False
     if is_admin:
         return True, ""
 
-    numbers_in_sql = re.findall(r'\b(\d{5})\b', sql)
+    numbers_in_sql = re.findall(r'\b(\d{4,6})\b', sql)
 
     if not is_manager:
         for num in numbers_in_sql:
@@ -356,6 +356,7 @@ if session is None:
     show_login()
 else:
     show_chat(session)
+
 
 
 
