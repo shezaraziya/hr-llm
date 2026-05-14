@@ -1,4 +1,4 @@
-import os
+﻿import os
 import time
 import logging
 import streamlit as st
@@ -201,6 +201,7 @@ def nl_to_sql(question: str, emp_no: int, is_manager: bool = False) -> str:
 
     except Exception as e:
         logging.error(f"nl_to_sql error | emp_no={emp_no} | is_manager={is_manager} | question={question} | error={e}")
-        return "Sorry, I could not process your request. Please try again or contact support."
+        return "ERROR: Could not process your request."
+
 
 
