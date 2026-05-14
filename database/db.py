@@ -51,4 +51,6 @@ def run_query(query, params=None):
         return df
     except Exception as e:
         logging.error(f"run_query error | query={query} | params={params} | error={e}")
-        raise
+        return None
+
+
