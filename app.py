@@ -276,6 +276,7 @@ def show_chat(session):
 
                         else:
                             sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager or is_admin)
+                            st.write(f"DEBUG sql=`{sql}`")  # temporary debug line
 
                             if sql.startswith("ERROR:") or not sql.strip().upper().startswith("SELECT"):
                                 msg = (
