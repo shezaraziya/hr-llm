@@ -113,7 +113,7 @@ def _call_groq(messages: list) -> str:
     client = get_groq_client()
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=messages
         )
         return response.choices[0].message.content.strip()
@@ -123,7 +123,7 @@ def _call_groq(messages: list) -> str:
         time.sleep(2)
         try:
             response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=messages
             )
             return response.choices[0].message.content.strip()
@@ -202,6 +202,7 @@ def nl_to_sql(question: str, emp_no: int, is_manager: bool = False) -> str:
     except Exception as e:
         logging.error(f"nl_to_sql error | emp_no={emp_no} | is_manager={is_manager} | question={question} | error={e}")
         return "ERROR: Could not process your request."
+
 
 
 
