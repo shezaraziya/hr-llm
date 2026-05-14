@@ -128,7 +128,7 @@ def show_login():
 # ─────────────────────────────────────────────
 def is_data_question(question: str) -> bool:
     try:
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
@@ -279,7 +279,7 @@ def show_chat(session):
                         else:
                             sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager or is_admin)
 
-                            if sql.startswith("ERROR:"):
+                            if sql.startswith("ERROR:") or not sql.strip().upper().startswith("SELECT"):
                                 logging.error(
                                     f"Groq error | emp_no={emp_no} | question={prompt} | error={sql}"
                                 )
