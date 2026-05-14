@@ -242,9 +242,7 @@ def show_chat(session):
 
                 else:
                     try:
-                        is_data = is_data_question(prompt)
-                        st.write(f"DEBUG is_data={is_data}")
-                        if not is_data:
+                        is_data = is_data_question(prompt)                        if not is_data:
                             msg = (
                                 "Hello! I'm your HR assistant. "
                                 "Ask me anything about employees, salaries, departments or leave data."
@@ -257,7 +255,6 @@ def show_chat(session):
 
                         else:
                             sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager or is_admin)
-                            st.write(f"DEBUG sql=`{sql}`")  # temporary debug line
 
                             if sql.startswith("ERROR:") or not sql.strip().upper().startswith("SELECT"):
                                 msg = (
@@ -358,3 +355,5 @@ if session is None:
     show_login()
 else:
     show_chat(session)
+
+
