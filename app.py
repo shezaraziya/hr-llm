@@ -263,7 +263,9 @@ def show_chat(session):
 
                 else:
                     try:
-                        if not is_data_question(prompt):
+                        is_data = is_data_question(prompt)
+                        st.write(f"DEBUG is_data={is_data}")
+                        if not is_data:
                             msg = (
                                 "Hello! I'm your HR assistant. "
                                 "Ask me anything about employees, salaries, departments or leave data."
