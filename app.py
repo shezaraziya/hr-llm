@@ -255,7 +255,7 @@ def show_chat(session):
                             })
 
                         else:
-                            sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager or is_admin)
+                            sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager, is_admin=is_admin)
 
                             if sql.startswith("ERROR:") or not sql.strip().upper().startswith("SELECT"):
                                 msg = (
@@ -356,6 +356,7 @@ if session is None:
     show_login()
 else:
     show_chat(session)
+
 
 
 
