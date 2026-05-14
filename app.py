@@ -361,7 +361,7 @@ def show_chat(session):
                         logging.error(
                             f"Unhandled error | emp_no={emp_no} | question={prompt} | error={e}"
                         )
-                        msg = "Sorry, I couldn't process your question. Please try rephrasing it."
+                        msg = f"Sorry, I couldn't process your question. Error: {str(e)}"
                         st.error(msg)
                         st.session_state.messages.append({
                             "role": "assistant",
