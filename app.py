@@ -36,7 +36,7 @@ from database.db import run_query
 # ─────────────────────────────────────────────
 # RATE LIMITER
 # ─────────────────────────────────────────────
-RATE_LIMIT = 20  # max questions per minute per user
+RATE_LIMIT = 20
 
 def is_rate_limited(user_key: str) -> bool:
     now = datetime.now()
@@ -156,7 +156,6 @@ def is_data_question(question: str) -> bool:
 def validate_sql(sql: str, emp_no: int, is_manager: bool, is_admin: bool = False) -> tuple[bool, str]:
     sql_upper = sql.upper()
 
-    # Write operations always blocked for everyone
     blocked_keywords = [
         "DROP", "DELETE", "UPDATE", "INSERT",
         "ALTER", "TRUNCATE", "CREATE", "REPLACE"
@@ -168,7 +167,6 @@ def validate_sql(sql: str, emp_no: int, is_manager: bool, is_admin: bool = False
     if "INFORMATION_SCHEMA" in sql_upper or "SHOW TABLES" in sql_upper:
         return False, "Access denied: schema inspection is not allowed."
 
-    # Admin bypasses all row-level restrictions
     if is_admin:
         return True, ""
 
@@ -280,13 +278,14 @@ def show_chat(session):
                             sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager or is_admin)
 
                             if sql.startswith("ERROR:") or not sql.strip().upper().startswith("SELECT"):
-                                logging.error(
-                                    f"Groq error | emp_no={emp_no} | question={prompt} | error={sql}"
+                                msg = (
+                                    "Hello! I'm your HR assistant. "
+                                    "Ask me anything about employees, salaries, departments or leave data."
                                 )
-                                st.error(f"⚠️ {sql}")
+                                st.markdown(msg)
                                 st.session_state.messages.append({
                                     "role": "assistant",
-                                    "content": f"⚠️ {sql}"
+                                    "content": msg
                                 })
 
                             else:
