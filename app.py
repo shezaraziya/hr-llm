@@ -149,6 +149,10 @@ def validate_sql(sql: str, emp_no: int, is_manager: bool, is_admin: bool = False
     if is_admin:
         return True, ""
 
+    # Block unscoped queries for non-admins
+    if not is_admin and 'WHERE' not in sql_upper:
+        return False, "Access denied: query must be scoped to your data."
+
     numbers_in_sql = re.findall(r'\b(\d{4,6})\b', sql)
 
     if not is_manager:
@@ -356,6 +360,7 @@ if session is None:
     show_login()
 else:
     show_chat(session)
+
 
 
 
