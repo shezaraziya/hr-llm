@@ -155,13 +155,16 @@ def validate_sql(sql: str, emp_no: int, is_manager: bool, is_admin: bool = False
         return False, "Access denied: query must be scoped to your data."
 
     # Employees only: every number in the SQL must match their own emp_no
+    # Exception: allow manager lookup queries
     if not is_manager:
         numbers_in_sql = re.findall(r'\b(\d{4,6})\b', sql)
-        for num in numbers_in_sql:
-            if int(num) != emp_no:
-                return False, "Access denied: you can only query your own data."
+        is_manager_lookup = "dept_manager" in sql.lower() and "dept_emp" in sql.lower()
+        if not is_manager_lookup:
+            for num in numbers_in_sql:
+                if int(num) != emp_no:
+                    return False, "Access denied: you can only query your own data."
 
-   # Managers: ensure query is scoped to their emp_no or department
+    # Managers: ensure query is scoped to their emp_no or department
     if is_manager:
         if str(emp_no) not in sql:
             return False, "Access denied: query must be scoped to your department."
@@ -362,7 +365,3 @@ if session is None:
     show_login()
 else:
     show_chat(session)
-
-
-
-
