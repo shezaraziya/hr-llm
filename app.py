@@ -161,8 +161,10 @@ def validate_sql(sql: str, emp_no: int, is_manager: bool, is_admin: bool = False
             if int(num) != emp_no:
                 return False, "Access denied: you can only query your own data."
 
-    # Managers: WHERE clause check is sufficient.
-    # The LLM prompt already scopes their queries to their department.
+   # Managers: ensure query is scoped to their emp_no or department
+    if is_manager:
+        if str(emp_no) not in sql:
+            return False, "Access denied: query must be scoped to your department."
 
     return True, ""
 
