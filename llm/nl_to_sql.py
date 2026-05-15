@@ -115,7 +115,9 @@ def nl_to_sql(question: str, emp_no, is_manager: bool = False, is_admin: bool = 
                 f"- For salaries, titles, dept_emp, dept_manager: WHERE emp_no = {emp_no} AND to_date = '9999-01-01'\n"
                 f"- For employees table: WHERE emp_no = {emp_no} (NO to_date)\n"
                 f"- For leave_requests: WHERE emp_no = {emp_no} (NO to_date)\n"
-                "Never return data belonging to any other employee.\n"
+                "- EXCEPTION: For 'who is my manager' queries, find the manager of the employee's department:\n"
+                f"  SELECT e.first_name, e.last_name FROM employees e JOIN dept_manager dm ON e.emp_no = dm.emp_no WHERE dm.dept_no = (SELECT dept_no FROM dept_emp WHERE emp_no = {emp_no} AND to_date = '9999-01-01') AND dm.to_date = '9999-01-01'\n"
+                "Never return data belonging to any other employee except for manager lookup.\n"
                 f"If the question references any emp_no other than {emp_no}, return: SELECT 'Access denied: you can only query your own data.' AS result\n"
             )
 
@@ -143,7 +145,6 @@ def nl_to_sql(question: str, emp_no, is_manager: bool = False, is_admin: bool = 
     except Exception as e:
         logging.error(f"nl_to_sql error | emp_no={emp_no} | is_manager={is_manager} | question={question} | error={e}")
         return f"ERROR: {str(e)}"
-
 
 
 
