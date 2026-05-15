@@ -91,3 +91,4 @@ if __name__ == "__main__":
     # Test as manager
     print("\n=== Testing as Manager ===")
     print(nl_to_sql("How many employees are in my department?", emp_no=10001, is_manager=True))
+
