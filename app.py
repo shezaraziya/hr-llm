@@ -213,7 +213,7 @@ def show_chat(session):
         st.markdown(f"**Emp No:** {emp_no if emp_no else 'N/A (Admin)'}")
         st.markdown(f"**Role:** {role.capitalize()}")
         if is_admin:
-            st.success("?? Full access — all departments")
+            st.success("?? Full access â€” all departments")
         if st.button("?? Logout"):
             logout(st.session_state["session_id"])
             for key in ["session_id", "emp_no", "role", "email"]:
