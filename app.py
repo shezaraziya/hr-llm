@@ -124,10 +124,30 @@ def show_login():
         st.link_button("🔵 Login with Google", auth_url)
 
 # ─────────────────────────────────────────────
-# INTENT DETECTION
+# HR QUESTION CLASSIFIER
 # ─────────────────────────────────────────────
-def is_data_question(question: str) -> bool:
-    return True
+HR_KEYWORDS = [
+    "employee", "employees", "salary", "salaries", "department", "departments",
+    "manager", "hire", "hired", "title", "gender", "count", "how many", "who is",
+    "average", "total", "tenure", "staff", "headcount", "payroll", "leave",
+    "promotion", "top paid", "highest", "lowest", "report", "team", "my "
+]
+
+def is_hr_question(question: str) -> bool:
+    q = question.lower()
+    return any(kw in q for kw in HR_KEYWORDS)
+
+# ─────────────────────────────────────────────
+# COMPANY-WIDE QUERY DETECTOR
+# ─────────────────────────────────────────────
+COMPANY_WIDE_PHRASES = [
+    "company", "entire company", "all employees", "whole company",
+    "organization", "total employees", "company-wide", "everyone", "across all"
+]
+
+def is_company_wide_query(question: str) -> bool:
+    q = question.lower()
+    return any(phrase in q for phrase in COMPANY_WIDE_PHRASES)
 
 # ─────────────────────────────────────────────
 # SQL SECURITY VALIDATOR
@@ -251,19 +271,26 @@ def show_chat(session):
 
                 else:
                     try:
-                        is_data = is_data_question(prompt)
-                        if not is_data:
+                        # ── Non-HR question check ──
+                        if not is_hr_question(prompt):
                             msg = (
-                                "Hello! I'm your HR assistant. "
-                                "Ask me anything about employees, salaries, departments or leave data."
+                                "🙋 I'm your HR assistant — I can only help with questions about "
+                                "employees, salaries, departments, leave, or managers.\n\n"
+                                "Try asking something like:\n"
+                                "- *How many employees are in my department?*\n"
+                                "- *What is my current salary?*\n"
+                                "- *Who is my manager?*"
                             )
-                            st.markdown(msg)
+                            st.info(msg)
                             st.session_state.messages.append({
                                 "role": "assistant",
                                 "content": msg
                             })
 
                         else:
+                            # ── Company-wide scope notice for managers ──
+                            show_scope_notice = is_manager and is_company_wide_query(prompt)
+
                             sql = nl_to_sql(prompt, emp_no=emp_no, is_manager=is_manager, is_admin=is_admin)
 
                             if sql.startswith("ERROR:") or not sql.strip().upper().startswith("SELECT"):
@@ -318,6 +345,8 @@ def show_chat(session):
                                             })
 
                                         else:
+                                            if show_scope_notice:
+                                                st.info("ℹ️ Showing results for your department only — managers don't have company-wide access.")
                                             st.markdown("Here are the results:")
                                             st.dataframe(df)
                                             log_audit(emp_no, email, prompt, sql, len(df), False)

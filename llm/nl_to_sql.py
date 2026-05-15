@@ -106,6 +106,10 @@ def nl_to_sql(question: str, emp_no, is_manager: bool = False, is_admin: bool = 
                 f"   - EVERY query MUST have a WHERE clause scoping to the manager's department or their own emp_no.\n"
                 f"   - A query with no WHERE clause is NEVER acceptable. No exceptions.\n"
                 f"   - NEVER use a hardcoded emp_no other than {emp_no} in any WHERE clause.\n"
+                "   - If the user says 'company-wide', 'entire company', 'all employees', 'total employees in the company',\n"
+                "     or any phrasing that implies the whole organization — STILL scope to their department only.\n"
+                "     There is no company-wide access for managers. Always use the dept subquery.\n"
+                f"   - Example for 'total employees in company': SELECT COUNT(*) FROM dept_emp WHERE dept_no = (SELECT dept_no FROM dept_manager WHERE emp_no = {emp_no} AND to_date = '9999-01-01') AND to_date = '9999-01-01'\n"
             )
         else:
             role_instruction = (
