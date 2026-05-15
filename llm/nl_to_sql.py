@@ -47,7 +47,7 @@ def _call_groq(messages: list) -> str:
     client = get_groq_client()
     try:
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama-3.3-70b-versatile",
             messages=messages
         )
         return response.choices[0].message.content.strip()
@@ -57,7 +57,7 @@ def _call_groq(messages: list) -> str:
         time.sleep(2)
         try:
             response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama-3.3-70b-versatile",
                 messages=messages
             )
             return response.choices[0].message.content.strip()
@@ -97,12 +97,15 @@ def nl_to_sql(question: str, emp_no, is_manager: bool = False, is_admin: bool = 
                 "2. TEAM/DEPARTMENT queries (my team, who reports to me, employees in my department, leave in my department):\n"
                 f"   - Only query employees whose emp_no exists in dept_emp WHERE dept_no = (SELECT dept_no FROM dept_manager WHERE emp_no = {emp_no} AND to_date = '9999-01-01') AND to_date = '9999-01-01'\n"
                 "   - NEVER query a specific dept_no that was mentioned by the user directly.\n\n"
-                "3. AGGREGATE/STATISTICAL queries (top paid employees, average salary, headcount, gender breakdown):\n"
-                "   - These are allowed but scoped to the manager's department only.\n"
-                f"   - BUT if the question references a specific emp_no other than {emp_no}, REFUSE.\n\n"
+                "3. AGGREGATE/STATISTICAL queries (count, average salary, headcount, gender breakdown, top paid):\n"
+                "   - ALWAYS scope to the manager's department only.\n"
+                f"   - Example: SELECT COUNT(*) FROM employees WHERE emp_no IN (SELECT emp_no FROM dept_emp WHERE dept_no = (SELECT dept_no FROM dept_manager WHERE emp_no = {emp_no} AND to_date = '9999-01-01') AND to_date = '9999-01-01')\n"
+                f"   - NEVER write a query without a WHERE clause. Every single query must be scoped.\n"
+                f"   - If the question contains any emp_no number that is not {emp_no}, return: SELECT 'Access denied: cannot query specific employee data outside your department.' AS result\n\n"
                 "CRITICAL RULES:\n"
+                f"   - EVERY query MUST have a WHERE clause scoping to the manager's department or their own emp_no.\n"
+                f"   - A query with no WHERE clause is NEVER acceptable. No exceptions.\n"
                 f"   - NEVER use a hardcoded emp_no other than {emp_no} in any WHERE clause.\n"
-                f"   - If the question contains any emp_no number that is not {emp_no}, return: SELECT 'Access denied: cannot query specific employee data outside your department.' AS result\n"
             )
         else:
             role_instruction = (
