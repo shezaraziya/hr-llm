@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import sys
 import os
 import re
@@ -11,9 +11,9 @@ from datetime import datetime, timedelta
 
 load_dotenv()
 
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 # LOGGING SETUP
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 logging.basicConfig(
     filename="chatbot.log",
     level=logging.ERROR,
@@ -33,9 +33,9 @@ from auth.google_auth import (
 from llm.nl_to_sql import nl_to_sql
 from database.db import run_query
 
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 # RATE LIMITER
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 RATE_LIMIT = 20
 
 def is_rate_limited(user_key: str) -> bool:
@@ -59,9 +59,9 @@ def is_rate_limited(user_key: str) -> bool:
     log[user_key].append(now)
     return False
 
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 # SESSION CHECK
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 def get_current_session():
     session_id = st.session_state.get("session_id")
     if not session_id:
@@ -72,11 +72,11 @@ def get_current_session():
         return None
     return session
 
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 # LOGIN PAGE
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 def show_login():
-    st.title("?? HR Chatbot Login")
+    st.title("🔐 HR Chatbot Login")
     st.markdown("Please log in with your Google account to continue.")
 
     params = st.query_params
@@ -87,17 +87,17 @@ def show_login():
             try:
                 token_data = exchange_code_for_token(code)
                 if not token_data:
-                    st.error("? Failed to get token from Google. Please try again.")
+                    st.error("❌ Failed to get token from Google. Please try again.")
                     return
 
                 email = get_user_email_from_token(token_data)
                 if not email:
-                    st.error("? Could not verify your Google account.")
+                    st.error("❌ Could not verify your Google account.")
                     return
 
                 user = get_user_account(email)
                 if not user:
-                    st.error(f"? Your email ({email}) is not registered in the HR system. Contact your administrator.")
+                    st.error(f"❌ Your email ({email}) is not registered in the HR system. Contact your administrator.")
                     return
 
                 session_id = create_session(
@@ -106,7 +106,7 @@ def show_login():
                     role=user["role"]
                 )
                 if not session_id:
-                    st.error("? Failed to create session. Please try again.")
+                    st.error("❌ Failed to create session. Please try again.")
                     return
 
                 st.session_state["session_id"] = session_id
@@ -118,20 +118,20 @@ def show_login():
                 st.rerun()
 
             except Exception as e:
-                st.error(f"? Login failed: {str(e)}")
+                st.error(f"❌ Login failed: {str(e)}")
     else:
         auth_url = get_google_auth_url()
-        st.link_button("?? Login with Google", auth_url)
+        st.link_button("🔵 Login with Google", auth_url)
 
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 # INTENT DETECTION
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 def is_data_question(question: str) -> bool:
     return True
 
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 # SQL SECURITY VALIDATOR
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 def validate_sql(sql: str, emp_no: int, is_manager: bool, is_admin: bool = False) -> tuple[bool, str]:
     sql_upper = sql.upper()
 
@@ -163,13 +163,12 @@ def validate_sql(sql: str, emp_no: int, is_manager: bool, is_admin: bool = False
 
     # Managers: WHERE clause check is sufficient.
     # The LLM prompt already scopes their queries to their department.
-    # We don't block on arbitrary numbers (counts, salaries, years, dept IDs).
 
     return True, ""
 
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 # AUDIT LOG
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 def log_audit(emp_no, email: str, question: str, sql: str, row_count: int, was_blocked: bool, block_reason: str = None):
     try:
         from database.db import get_engine
@@ -192,9 +191,9 @@ def log_audit(emp_no, email: str, question: str, sql: str, row_count: int, was_b
     except Exception as e:
         logging.error(f"Audit log failed | emp_no={emp_no} | error={e}")
 
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 # CHAT INTERFACE
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 def show_chat(session):
     emp_no = session["emp_no"]
     role = session["role"]
@@ -202,10 +201,10 @@ def show_chat(session):
     is_admin = role == "admin"
     is_manager = role == "manager"
 
-    role_label = "?? Admin" if is_admin else ("?? Manager" if is_manager else "?? Employee")
+    role_label = "🔑 Admin" if is_admin else ("👔 Manager" if is_manager else "👤 Employee")
 
-    st.set_page_config(page_title="HR Chatbot", page_icon="??")
-    st.title("?? HR AI Chatbot")
+    st.set_page_config(page_title="HR Chatbot", page_icon="🤖")
+    st.title("🤖 HR AI Chatbot")
     st.markdown(f"Logged in as **{email}** | {role_label}")
 
     with st.sidebar:
@@ -213,8 +212,8 @@ def show_chat(session):
         st.markdown(f"**Emp No:** {emp_no if emp_no else 'N/A (Admin)'}")
         st.markdown(f"**Role:** {role.capitalize()}")
         if is_admin:
-            st.success("?? Full access — all departments")
-        if st.button("?? Logout"):
+            st.success("🔑 Full access — all departments")
+        if st.button("🚪 Logout"):
             logout(st.session_state["session_id"])
             for key in ["session_id", "emp_no", "role", "email"]:
                 st.session_state.pop(key, None)
@@ -295,7 +294,7 @@ def show_chat(session):
                                         df = run_query(sql)
 
                                         if df is None:
-                                            msg = "?? A database error occurred. Please try again later."
+                                            msg = "⚠️ A database error occurred. Please try again later."
                                             logging.error(f"DB returned None | emp_no={emp_no} | sql={sql}")
                                             st.error(msg)
                                             st.session_state.messages.append({
@@ -331,7 +330,7 @@ def show_chat(session):
                                             f"ProgrammingError | emp_no={emp_no} | question={prompt} | sql={sql} | error={e}"
                                         )
                                         msg = (
-                                            "?? I couldn't generate a valid query for that question. "
+                                            "⚠️ I couldn't generate a valid query for that question. "
                                             "Try rephrasing it."
                                         )
                                         st.warning(msg)
@@ -352,17 +351,15 @@ def show_chat(session):
                             "content": msg
                         })
 
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 # ENTRY POINT
-# ---------------------------------------------
+# ─────────────────────────────────────────────
 session = get_current_session()
 
 if session is None:
     show_login()
 else:
     show_chat(session)
-
-
 
 
 
