@@ -103,6 +103,7 @@ def nl_to_sql(question: str, emp_no, is_manager: bool = False, is_admin: bool = 
                 f"   - NEVER write a query without a WHERE clause. Every single query must be scoped.\n"
                 f"   - If the question contains any emp_no number that is not {emp_no}, return: SELECT 'Access denied: cannot query specific employee data outside your department.' AS result\n\n"
                 "CRITICAL RULES:\n"
+                f"   - If the question is 'who is my manager' or 'who do I report to', return: SELECT 'As a department manager, you report directly to senior HR leadership. This information is not available in the system.' AS result\n"
                 f"   - EVERY query MUST have a WHERE clause scoping to the manager's department or their own emp_no.\n"
                 f"   - A query with no WHERE clause is NEVER acceptable. No exceptions.\n"
                 f"   - NEVER use a hardcoded emp_no other than {emp_no} in any WHERE clause.\n"
@@ -111,7 +112,8 @@ def nl_to_sql(question: str, emp_no, is_manager: bool = False, is_admin: bool = 
                "     ALWAYS silently scope the query to their department and return real SQL.\n"
                "     There is no company-wide access for managers, but you must still return a valid scoped SQL query.\n"
                "   - FORBIDDEN: returning SELECT 'Access denied...' for company-wide questions. Write the dept-scoped query instead.\n"
-               f"   - Example for 'total employees in company': SELECT COUNT(*) FROM dept_emp WHERE dept_no = (SELECT dept_no FROM dept_manager WHERE emp_no = {emp_no} AND to_date = '9999-01-01') AND to_date = '9999-01-01'\n"
+               f"   - Example for 'total employees in company' or 'total number of employees': SELECT COUNT(*) FROM dept_emp WHERE dept_no = (SELECT dept_no FROM dept_manager WHERE emp_no = {emp_no} AND to_date = '9999-01-01') AND to_date = '9999-01-01'\n"
+               f"   - NEVER do SELECT COUNT(*) FROM employees for a manager. Always COUNT from dept_emp scoped to their dept.\n"
             )
         else:
             role_instruction = (
